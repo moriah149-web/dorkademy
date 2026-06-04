@@ -146,6 +146,7 @@ function markDailyDone() {
 
 function renderStats() {
     const mastery = load(LS.MASTERY) || {};
+    const mistakes = load(LS.MISTAKES) || {};
     const topics = DATA.topics;
 
     let masteredCount = 0;
@@ -165,7 +166,6 @@ function renderStats() {
     const streak = load(LS.STREAK) || 0;
     document.getElementById('statStreak').textContent = streak;
 
-    const mistakes = load(LS.MISTAKES) || {};
     const weakCount = Object.values(mistakes).filter(m => m.wrong > 0 && m.correctStreak < 3).length;
     document.getElementById('statWeak').textContent = weakCount;
 }
