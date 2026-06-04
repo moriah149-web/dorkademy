@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dorkademy - הכנה לבחינת רישוי בריפוי בעיסוק</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo" onclick="navigateTo('dashboard')">
+                <span class="logo-icon">📖</span>
+                <span class="logo-text">Dorkademy</span>
+            </div>
+            <nav class="nav">
+                <button class="nav-btn active" data-page="dashboard" onclick="navigateTo('dashboard')">דף הבית</button>
+                <button class="nav-btn" data-page="simulations" onclick="navigateTo('simulations')">מבחני סימולציה</button>
+                <button class="nav-btn" data-page="weak-questions" onclick="navigateTo('weak-questions')">שאלות חלשות</button>
+                <button class="nav-btn" data-page="history" onclick="navigateTo('history')">היסטוריית מבחנים</button>
+                <button class="nav-btn" data-page="settings" onclick="navigateTo('settings')">הגדרות</button>
+            </nav>
+            <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
+        </div>
+    </header>
+
+    <!-- Mobile Menu -->
+    <div class="mobile-menu" id="mobileMenu">
+        <button onclick="navigateTo('dashboard'); toggleMobileMenu()">דף הבית</button>
+        <button onclick="navigateTo('simulations'); toggleMobileMenu()">מבחני סימולציה</button>
+        <button onclick="navigateTo('weak-questions'); toggleMobileMenu()">שאלות חלשות</button>
+        <button onclick="navigateTo('history'); toggleMobileMenu()">היסטוריית מבחנים</button>
+        <button onclick="navigateTo('settings'); toggleMobileMenu()">הגדרות</button>
+    </div>
+
+    <main class="main-content">
+        <!-- Dashboard Page -->
+        <div class="page active" id="page-dashboard">
+            <div class="hero-section">
+                <div class="greeting">
+                    <h1>שלום! 👋</h1>
+                    <p class="subtitle">בואי נתכונן לבחינת הרישוי</p>
+                </div>
+                <div class="countdown-card">
+                    <div class="countdown-number" id="countdownDays">--</div>
+                    <div class="countdown-label">ימים לבחינה</div>
+                    <div class="countdown-date">15.07.2026</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">📅 תוכנית הלימוד להיום</h2>
+                <div class="daily-plan-card" id="dailyPlanCard"></div>
+            </div>
+
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-number" id="statTopics">0%</div>
+                    <div class="stat-label">נושאים הושלמו</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="statAvgScore">0%</div>
+                    <div class="stat-label">אחוז למידה</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="statStreak">0</div>
+                    <div class="stat-label">ימי רצף 🔥</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="statWeak">0</div>
+                    <div class="stat-label">שאלות חלשות</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">📚 נושאי הלימוד</h2>
+                <div class="topics-grid" id="topicsGrid"></div>
+            </div>
+        </div>
+
+        <!-- Simulations Page -->
+        <div class="page" id="page-simulations">
+            <div class="page-header">
+                <h1>🎯 מבחני סימולציה</h1>
+                <p>מבחנים בתנאי בחינה אמיתיים — 100 שאלות, ציון עובר 60, ללא משוב במהלך המבחן</p>
+            </div>
+            <div class="sims-grid" id="simsGrid"></div>
+        </div>
+
+        <!-- Topic Page -->
+        <div class="page" id="page-topic">
+            <button class="back-btn" onclick="navigateTo('dashboard')">← חזרה לדף הבית</button>
+            <div class="topic-header" id="topicHeader"></div>
+            <div class="topic-actions">
+                <button class="action-btn primary" onclick="startTopicTest()">
+                    <span>🧪</span> מבחן נושא
+                </button>
+                <button class="action-btn secondary" onclick="startTopicPractice()">
+                    <span>📝</span> תרגול חופשי
+                </button>
+            </div>
+            <div class="topic-questions-list" id="topicQuestionsList"></div>
+        </div>
+
+        <!-- Test Page (exam-style: no feedback during) -->
+        <div class="page" id="page-test">
+            <div class="test-container">
+                <div class="test-header">
+                    <button class="back-btn" onclick="confirmExitTest()">✕ צא מהמבחן</button>
+                    <div class="test-progress">
+                        <div class="progress-text" id="testProgressText">שאלה 1 מתוך 10</div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" id="testProgressBar"></div>
+                        </div>
+                    </div>
+                    <div class="answered-count" id="answeredCount">0/10 נענו</div>
+                </div>
+
+                <!-- Question navigator dots -->
+                <div class="question-nav" id="questionNav"></div>
+
+                <div class="question-card" id="questionCard">
+                    <div class="question-number" id="questionNumber"></div>
+                    <div class="question-text" id="questionText"></div>
+                    <div class="options-list" id="optionsList"></div>
+                </div>
+
+                <!-- Navigation buttons -->
+                <div class="test-nav-buttons">
+                    <button class="test-nav-btn" id="prevBtn" onclick="prevQuestion()">→ הקודמת</button>
+                    <button class="test-nav-btn" id="nextBtn" onclick="nextQuestion()">הבאה ←</button>
+                </div>
+
+                <!-- Submit button -->
+                <button class="submit-test-btn" id="submitTestBtn" onclick="submitTest()">
+                    📋 סיום והגשת המבחן
+                </button>
+            </div>
+        </div>
+
+        <!-- Results Page -->
+        <div class="page" id="page-results">
+            <div class="results-container">
+                <div class="results-header">
+                    <div class="score-circle" id="scoreCircle">
+                        <svg viewBox="0 0 120 120">
+                            <circle class="score-bg" cx="60" cy="60" r="54"></circle>
+                            <circle class="score-fill" id="scoreFill" cx="60" cy="60" r="54"></circle>
+                        </svg>
+                        <div class="score-text" id="scoreText">0%</div>
+                    </div>
+                    <div class="pass-fail" id="passFail"></div>
+                    <div class="results-summary" id="resultsSummary"></div>
+                </div>
+                <div class="results-actions">
+                    <button class="action-btn primary" onclick="practiceMistakes()">🔄 תרגול הטעויות</button>
+                    <button class="action-btn secondary" onclick="navigateTo('dashboard')">🏠 חזרה לדף הבית</button>
+                </div>
+                <div class="results-details">
+                    <h3 class="wrong-title" id="wrongTitle">❌ שאלות שטעיתי</h3>
+                    <div id="wrongAnswersList" class="answers-list"></div>
+                    <details class="correct-details">
+                        <summary class="correct-summary" id="correctTitle">✅ שאלות שעניתי נכון</summary>
+                        <div id="correctAnswersList" class="answers-list"></div>
+                    </details>
+                </div>
+            </div>
+        </div>
+
+        <!-- Weak Questions Page -->
+        <div class="page" id="page-weak-questions">
+            <div class="page-header">
+                <h1>💪 שאלות חלשות</h1>
+                <p>שאלות שטעית בהן - תרגלי עד שתשלטי</p>
+            </div>
+            <div id="weakQuestionsContent"></div>
+        </div>
+
+        <!-- History Page -->
+        <div class="page" id="page-history">
+            <div class="page-header">
+                <h1>📊 היסטוריית מבחנים</h1>
+            </div>
+            <div id="historyList"></div>
+        </div>
+
+        <!-- Settings Page -->
+        <div class="page" id="page-settings">
+            <div class="page-header">
+                <h1>⚙️ הגדרות</h1>
+            </div>
+            <div class="settings-content">
+                <div class="setting-item">
+                    <h3>איפוס התקדמות</h3>
+                    <p>מחיקת כל הנתונים השמורים - ציונים, שאלות חלשות ורצף ימים</p>
+                    <button class="danger-btn" onclick="resetProgress()">🗑️ איפוס כל ההתקדמות</button>
+                </div>
+                <div class="setting-item">
+                    <h3>סטטיסטיקות</h3>
+                    <div class="stats-detail" id="settingsStats"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
