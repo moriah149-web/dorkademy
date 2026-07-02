@@ -12,8 +12,14 @@ let state = {
     testIndex: 0,        // currently viewed question index
     testSelections: [],   // array of selected option index per question (-1 = unanswered)
     testType: '',         // 'simulation', 'topic', 'practice', 'weak'
-    testSimId: null       // simulation id if applicable
+    testSimId: null,      // simulation id if applicable
+    // Timer state
+    timerSeconds: 0,      // remaining seconds
+    timerInterval: null   // setInterval id
 };
+
+// --- Config ---
+const SIMULATION_DURATION_MINUTES = 180; // 3 hours — CONFIRM with Moria
 
 // --- LocalStorage Keys ---
 const LS = {
@@ -21,7 +27,9 @@ const LS = {
     STREAK: 'dorkademy_streak',
     HISTORY: 'dorkademy_history',
     DAILY_DONE: 'dorkademy_daily_done',
-    MASTERY: 'dorkademy_mastery'
+    MASTERY: 'dorkademy_mastery',
+    EXAM_DATE: 'dorkademy_exam_date',
+    SIM_STATE: 'dorkademy_sim_state'
 };
 
 // --- Init ---
@@ -35,7 +43,47 @@ async function init() {
         return;
     }
     updateStreak();
+
+    // First visit: show exam date picker if no date set
+    if (!load(LS.EXAM_DATE)) {
+        showExamDateModal();
+    } else {
+        renderDashboard();
+    }
+}
+
+// --- Exam Date ---
+function getExamDate() {
+    const saved = load(LS.EXAM_DATE);
+    if (!saved) return null;
+    const d = new Date(saved);
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+
+function showExamDateModal() {
+    document.getElementById('examDateModal').classList.add('active');
+    // Set min date to today
+    const today = new Date().toISOString().split('T')[0];
+    const input = document.getElementById('examDateInput');
+    input.min = today;
+    // Pre-fill with saved date if editing
+    const saved = load(LS.EXAM_DATE);
+    if (saved) input.value = saved;
+}
+
+function saveExamDate() {
+    const input = document.getElementById('examDateInput');
+    if (!input.value) {
+        alert('בבקשה בחרי תאריך בחינה');
+        return;
+    }
+    const isFirst = !load(LS.EXAM_DATE);
+    save(LS.EXAM_DATE, input.value);
+    document.getElementById('examDateModal').classList.remove('active');
+    trackEvent(isFirst ? 'signup' : 'exam-date-changed', { date: input.value });
     renderDashboard();
+    navigateTo('dashboard');
 }
 
 // --- Navigation ---
@@ -75,21 +123,39 @@ function renderDashboard() {
 }
 
 function renderCountdown() {
-    const exam = new Date(2026, 6, 15);
+    const exam = getExamDate();
+    if (!exam) {
+        document.getElementById('countdownDays').textContent = '--';
+        document.getElementById('countdownDateLabel').textContent = 'לא הוגדר תאריך';
+        return;
+    }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const diff = Math.ceil((exam - today) / (1000 * 60 * 60 * 24));
     document.getElementById('countdownDays').textContent = Math.max(0, diff);
+    document.getElementById('countdownDateLabel').textContent =
+        exam.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function renderDailyPlan() {
     const container = document.getElementById('dailyPlanCard');
-    const exam = new Date(2026, 6, 15);
+    const exam = getExamDate();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const daysLeft = Math.ceil((exam - today) / (1000 * 60 * 60 * 24));
     const todayStr = today.toISOString().split('T')[0];
     const dailyDone = load(LS.DAILY_DONE) || {};
+
+    if (!exam) {
+        container.innerHTML = `
+            <h3>📅 הגדירי תאריך בחינה</h3>
+            <p style="color:var(--text-light);margin-bottom:16px">
+                כדי לבנות לך תוכנית לימוד מותאמת, צריך לדעת מתי הבחינה שלך.
+            </p>
+            <button class="daily-plan-btn" onclick="showExamDateModal()">הגדרת תאריך בחינה</button>`;
+        return;
+    }
+
+    const daysLeft = Math.ceil((exam - today) / (1000 * 60 * 60 * 24));
 
     if (daysLeft <= 7) {
         container.innerHTML = `
@@ -105,11 +171,27 @@ function renderDailyPlan() {
     }
 
     const topics = DATA.topics;
-    const topicsPerDay = Math.max(1, Math.ceil(topics.length / Math.max(1, daysLeft - 7)));
-    const dayIndex = Math.floor((new Date() - new Date(2026, 0, 1)) / (1000 * 60 * 60 * 24)) % topics.length;
+    // Build weighted plan: distribute topics across remaining days by question share
+    const totalQuestions = DATA.questions.length;
+    const studyDays = Math.max(1, daysLeft - 7); // reserve last 7 days for simulations
+    // Each topic gets days proportional to its question count
+    const topicDays = topics.map(t => {
+        const count = DATA.questions.filter(q => q.topicId === t.id).length;
+        return { topic: t, days: Math.max(1, Math.round((count / totalQuestions) * studyDays)) };
+    });
+    // Build a flat schedule of topic assignments
+    const schedule = [];
+    topicDays.forEach(td => {
+        for (let i = 0; i < td.days; i++) schedule.push(td.topic);
+    });
+    // Pick today's topics from the schedule
+    const dayIndex = Math.floor((today - new Date(today.getFullYear(), 0, 1)) / (1000 * 60 * 60 * 24)) % Math.max(1, schedule.length);
+    const topicsPerDay = Math.max(1, Math.ceil(schedule.length / studyDays));
     const todayTopics = [];
-    for (let i = 0; i < topicsPerDay && i < topics.length; i++) {
-        todayTopics.push(topics[(dayIndex + i) % topics.length]);
+    const seen = new Set();
+    for (let i = 0; i < topicsPerDay; i++) {
+        const t = schedule[(dayIndex + i) % schedule.length];
+        if (!seen.has(t.id)) { todayTopics.push(t); seen.add(t.id); }
     }
 
     const questionsCount = todayTopics.reduce((sum, t) => {
@@ -140,6 +222,7 @@ function startDailyPlan(topicIds) {
 function markDailyDone() {
     const todayStr = new Date().toISOString().split('T')[0];
     const dailyDone = load(LS.DAILY_DONE) || {};
+    if (!dailyDone[todayStr]) trackEvent('plan-day-completed');
     dailyDone[todayStr] = true;
     save(LS.DAILY_DONE, dailyDone);
 }
@@ -228,11 +311,23 @@ function startSimulation(simId) {
     const sim = DATA.simulations.find(s => s.id === simId);
     if (!sim || !sim.questionIds || sim.questionIds.length === 0) return;
 
+    // Check for saved state to resume
+    const savedState = load(LS.SIM_STATE);
+    if (savedState && savedState.simId === simId) {
+        if (confirm('יש לך סימולציה שלא הסתיימה. להמשיך מאיפה שהפסקת?')) {
+            resumeSimulation(savedState);
+            return;
+        } else {
+            clearSavedSimState();
+        }
+    }
+
     const questions = sim.questionIds
         .map(id => DATA.questions.find(q => q.id === id))
         .filter(Boolean);
 
     state.testSimId = simId;
+    trackEvent('simulation-started', { simId });
     startTest(shuffleArray([...questions]), 'simulation');
 }
 
@@ -277,8 +372,19 @@ function startTopicPractice() {
 function startTest(questions, type) {
     state.testQuestions = questions;
     state.testIndex = 0;
-    state.testSelections = new Array(questions.length).fill(-1); // -1 = unanswered
+    state.testSelections = new Array(questions.length).fill(-1);
     state.testType = type;
+
+    // Timer: only for simulations
+    stopTimer();
+    const timerEl = document.getElementById('simTimer');
+    if (type === 'simulation') {
+        state.timerSeconds = SIMULATION_DURATION_MINUTES * 60;
+        timerEl.style.display = '';
+        startTimer();
+    } else {
+        timerEl.style.display = 'none';
+    }
 
     // Navigate to test page
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -287,6 +393,109 @@ function startTest(questions, type) {
 
     renderQuestionNav();
     renderQuestion();
+}
+
+function resumeSimulation(simState) {
+    const sim = DATA.simulations.find(s => s.id === simState.simId);
+    if (!sim) return;
+
+    // Restore question order from saved IDs
+    state.testQuestions = simState.questionOrder
+        .map(id => DATA.questions.find(q => q.id === id))
+        .filter(Boolean);
+    state.testIndex = simState.currentIndex || 0;
+    state.testSelections = simState.selections;
+    state.testType = 'simulation';
+    state.testSimId = simState.simId;
+    state.timerSeconds = simState.remainingSeconds;
+
+    const timerEl = document.getElementById('simTimer');
+    timerEl.style.display = '';
+    startTimer();
+
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-test').classList.add('active');
+    window.scrollTo(0, 0);
+
+    renderQuestionNav();
+    renderQuestion();
+}
+
+// --- Timer ---
+function startTimer() {
+    updateTimerDisplay();
+    state.timerInterval = setInterval(() => {
+        state.timerSeconds--;
+        updateTimerDisplay();
+        if (state.timerSeconds <= 0) {
+            stopTimer();
+            clearSavedSimState();
+            alert('הזמן נגמר! המבחן מוגש אוטומטית.');
+            forceSubmitTest();
+        }
+    }, 1000);
+}
+
+function stopTimer() {
+    if (state.timerInterval) {
+        clearInterval(state.timerInterval);
+        state.timerInterval = null;
+    }
+}
+
+function updateTimerDisplay() {
+    const el = document.getElementById('simTimer');
+    if (!el) return;
+    const h = Math.floor(state.timerSeconds / 3600);
+    const m = Math.floor((state.timerSeconds % 3600) / 60);
+    const s = state.timerSeconds % 60;
+    el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+
+    // Warning state at 15 minutes
+    if (state.timerSeconds <= 900 && state.timerSeconds > 0) {
+        el.classList.add('warning');
+    } else {
+        el.classList.remove('warning');
+    }
+}
+
+function saveSimState() {
+    if (state.testType !== 'simulation') return;
+    const simState = {
+        simId: state.testSimId,
+        questionOrder: state.testQuestions.map(q => q.id),
+        selections: state.testSelections,
+        currentIndex: state.testIndex,
+        remainingSeconds: state.timerSeconds,
+        savedAt: new Date().toISOString()
+    };
+    save(LS.SIM_STATE, simState);
+}
+
+function clearSavedSimState() {
+    localStorage.removeItem(LS.SIM_STATE);
+}
+
+function forceSubmitTest() {
+    // Same as submitTest but without confirmation prompts
+    const total = state.testQuestions.length;
+    const answers = state.testQuestions.map((q, i) => {
+        const selected = state.testSelections[i];
+        const isCorrect = selected === q.correctIndex;
+        return { questionId: q.id, selected, correct: q.correctIndex, isCorrect: selected !== -1 && isCorrect };
+    });
+    const correct = answers.filter(a => a.isCorrect).length;
+    const score = Math.round((correct / total) * 100);
+    answers.forEach(a => { if (a.selected !== -1) updateMistakesBank(a.questionId, a.isCorrect); });
+    const history = load(LS.HISTORY) || [];
+    history.unshift({ date: new Date().toISOString(), type: state.testType, topicId: state.currentTopicId, simId: state.testSimId || null, total, correct, score });
+    if (history.length > 50) history.length = 50;
+    save(LS.HISTORY, history);
+    updateMastery();
+    markDailyDone();
+    updateStreak();
+    state.testAnswers = answers;
+    showResults(score, correct, total);
 }
 
 function renderQuestionNav() {
@@ -337,6 +546,8 @@ function renderQuestion() {
 
 function selectAnswer(index) {
     state.testSelections[state.testIndex] = index;
+    const q = state.testQuestions[state.testIndex];
+    if (q) trackEvent('question-answered', { topic: q.topicId });
 
     // Re-render options to show selection (no correct/wrong feedback)
     const options = document.querySelectorAll('.option-btn');
@@ -385,6 +596,9 @@ function submitTest() {
         if (!confirm('להגיש את המבחן?')) return;
     }
 
+    stopTimer();
+    clearSavedSimState();
+
     // Calculate results
     const answers = state.testQuestions.map((q, i) => {
         const selected = state.testSelections[i];
@@ -428,6 +642,11 @@ function submitTest() {
     // Mark daily done & streak
     markDailyDone();
     updateStreak();
+
+    // Track completion
+    if (state.testType === 'simulation') {
+        trackEvent('simulation-completed', { simId: state.testSimId, score });
+    }
 
     // Store answers in state for results page
     state.testAnswers = answers;
@@ -473,6 +692,56 @@ function showResults(score, correct, total) {
     document.getElementById('resultsSummary').textContent =
         `${correct} תשובות נכונות מתוך ${total}`;
 
+    // Per-topic breakdown (simulations only)
+    const breakdownEl = document.getElementById('topicBreakdown');
+    if (state.testType === 'simulation') {
+        const topicStats = {};
+        state.testAnswers.forEach(a => {
+            const q = DATA.questions.find(qq => qq.id === a.questionId);
+            if (!q) return;
+            if (!topicStats[q.topicId]) topicStats[q.topicId] = { correct: 0, total: 0 };
+            topicStats[q.topicId].total++;
+            if (a.isCorrect) topicStats[q.topicId].correct++;
+        });
+
+        const topicRows = DATA.topics
+            .filter(t => topicStats[t.id])
+            .map(t => {
+                const s = topicStats[t.id];
+                const pct = Math.round((s.correct / s.total) * 100);
+                const passed = pct >= 60;
+                return { topic: t, correct: s.correct, total: s.total, pct, passed };
+            })
+            .sort((a, b) => a.pct - b.pct);
+
+        const weakest3 = topicRows.slice(0, 3);
+
+        breakdownEl.style.display = 'block';
+        breakdownEl.innerHTML = `
+            <h3>📊 פירוט לפי נושא</h3>
+            <table class="breakdown-table">
+                <thead><tr><th>נושא</th><th>ציון</th><th>תוצאה</th></tr></thead>
+                <tbody>
+                    ${topicRows.map(r => `
+                        <tr class="${r.passed ? '' : 'weak-row'}">
+                            <td>${r.topic.icon} ${r.topic.name}</td>
+                            <td>${r.correct}/${r.total} (${r.pct}%)</td>
+                            <td>${r.passed ? '<span class="tag correct">עוברת</span>' : '<span class="tag wrong">לא עוברת</span>'}</td>
+                        </tr>`).join('')}
+                </tbody>
+            </table>
+            ${weakest3.length > 0 ? `
+                <div class="weakest-topics">
+                    <h4>💪 3 הנושאים שכדאי לחזק:</h4>
+                    ${weakest3.map(r => `
+                        <button class="weak-topic-btn" onclick="navigateTo('topic', '${r.topic.id}')">
+                            ${r.topic.icon} ${r.topic.name} (${r.pct}%) — תרגלי נושא זה
+                        </button>`).join('')}
+                </div>` : ''}`;
+    } else {
+        breakdownEl.style.display = 'none';
+    }
+
     // Build review lists
     const wrongAnswers = state.testAnswers.filter(a => !a.isCorrect);
     const correctAnswers = state.testAnswers.filter(a => a.isCorrect);
@@ -496,6 +765,7 @@ function showResults(score, correct, total) {
                     נכון: <span class="tag correct">${letters[a.correct]}. ${q.options[a.correct]}</span>
                 </div>
                 <div class="answer-explanation">${q.explanation}</div>
+                <button class="report-error-link" onclick="openErrorReportForQuestion('${q.id}')">🚩 דיווח על טעות</button>
             </div>`;
     }).join('');
 
@@ -509,6 +779,7 @@ function showResults(score, correct, total) {
                     תשובה: <span class="tag correct">${letters[a.correct]}. ${q.options[a.correct]}</span>
                 </div>
                 <div class="answer-explanation">${q.explanation}</div>
+                <button class="report-error-link" onclick="openErrorReportForQuestion('${q.id}')">🚩 דיווח על טעות</button>
             </div>`;
     }).join('');
 }
@@ -525,9 +796,18 @@ function practiceMistakes() {
 }
 
 function confirmExitTest() {
-    if (confirm('בטוח שתרצי לצאת מהמבחן? ההתקדמות לא תישמר.')) {
-        state.testSimId = null;
-        navigateTo('dashboard');
+    if (state.testType === 'simulation') {
+        if (confirm('לצאת מהסימולציה? ההתקדמות תישמר ותוכלי לחזור.')) {
+            stopTimer();
+            saveSimState();
+            state.testSimId = null;
+            navigateTo('dashboard');
+        }
+    } else {
+        if (confirm('בטוח שתרצי לצאת מהמבחן? ההתקדמות לא תישמר.')) {
+            state.testSimId = null;
+            navigateTo('dashboard');
+        }
     }
 }
 
@@ -699,6 +979,14 @@ function renderSettings() {
     const mistakes = load(LS.MISTAKES) || {};
     const totalAnswered = Object.values(mistakes).reduce((s, m) => s + m.correct + m.wrong, 0);
     const totalCorrect = Object.values(mistakes).reduce((s, m) => s + m.correct, 0);
+    const examDate = getExamDate();
+    const examDateStr = examDate
+        ? examDate.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        : 'לא הוגדר';
+
+    document.getElementById('settingsExamDate').innerHTML = `
+        <p>תאריך בחינה נוכחי: <strong>${examDateStr}</strong></p>
+        <button class="action-btn secondary" onclick="showExamDateModal()" style="margin-top:8px">שינוי תאריך בחינה</button>`;
 
     document.getElementById('settingsStats').innerHTML = `
         <p>שאלות בבנק: <strong>${DATA.questions.length}</strong></p>
@@ -714,6 +1002,59 @@ function resetProgress() {
         alert('ההתקדמות אופסה!');
         navigateTo('dashboard');
     }
+}
+
+// --- Error Report ---
+const ERROR_REPORT_EMAIL = 'moria@dorkademy.co.il'; // UPDATE this email
+
+function openErrorReport() {
+    const q = state.testQuestions[state.testIndex];
+    if (!q) return;
+    document.getElementById('errorReportQuestion').textContent = `שאלה: ${q.id} — ${q.question.substring(0, 80)}...`;
+    document.getElementById('errorReportText').value = '';
+    document.getElementById('errorReportModal').classList.add('active');
+}
+
+function openErrorReportForQuestion(questionId) {
+    const q = DATA.questions.find(qq => qq.id === questionId);
+    if (!q) return;
+    state._reportQuestionId = questionId;
+    document.getElementById('errorReportQuestion').textContent = `שאלה: ${q.id} — ${q.question.substring(0, 80)}...`;
+    document.getElementById('errorReportText').value = '';
+    document.getElementById('errorReportModal').classList.add('active');
+}
+
+function closeErrorReport() {
+    document.getElementById('errorReportModal').classList.remove('active');
+    state._reportQuestionId = null;
+}
+
+function sendErrorReport() {
+    const qId = state._reportQuestionId || (state.testQuestions[state.testIndex] ? state.testQuestions[state.testIndex].id : null);
+    const comment = document.getElementById('errorReportText').value.trim();
+    const q = DATA.questions.find(qq => qq.id === qId);
+
+    const subject = encodeURIComponent(`דיווח טעות — שאלה ${qId}`);
+    const body = encodeURIComponent(
+        `שאלה: ${qId}\n` +
+        `טקסט: ${q ? q.question : 'לא נמצא'}\n` +
+        `הערה: ${comment || '(ללא הערה)'}\n` +
+        `תאריך: ${new Date().toLocaleString('he-IL')}`
+    );
+
+    window.open(`mailto:${ERROR_REPORT_EMAIL}?subject=${subject}&body=${body}`, '_self');
+    trackEvent('error-report-sent', { questionId: qId });
+    closeErrorReport();
+    alert('תודה על הדיווח! 🙏');
+}
+
+// --- Analytics ---
+function trackEvent(name, data) {
+    if (typeof window.goatcounter === 'undefined') return;
+    try {
+        const path = data ? `${name}/${Object.values(data).join('/')}` : name;
+        window.goatcounter.count({ path: path, title: name, event: true });
+    } catch (e) { /* analytics should never break the app */ }
 }
 
 // --- Utilities ---

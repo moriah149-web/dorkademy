@@ -37,6 +37,33 @@
         <button onclick="navigateTo('settings'); toggleMobileMenu()">הגדרות</button>
     </div>
 
+    <!-- Error Report Modal -->
+    <div class="modal-overlay" id="errorReportModal">
+        <div class="modal-card">
+            <div class="modal-icon">🚩</div>
+            <h2>דיווח על טעות</h2>
+            <p id="errorReportQuestion" style="font-size:13px;color:var(--text-lighter);margin-bottom:12px"></p>
+            <textarea id="errorReportText" class="report-textarea" placeholder="מה השגיאה? (אופציונלי)" rows="4"></textarea>
+            <div style="display:flex;gap:8px;margin-top:12px">
+                <button class="action-btn primary" onclick="sendErrorReport()" style="flex:1;justify-content:center">שליחה</button>
+                <button class="action-btn secondary" onclick="closeErrorReport()" style="flex:1;justify-content:center">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Exam Date Modal -->
+    <div class="modal-overlay" id="examDateModal">
+        <div class="modal-card">
+            <div class="modal-icon">📅</div>
+            <h2>מתי הבחינה שלך?</h2>
+            <p>נבנה לך תוכנית לימוד מותאמת אישית לפי התאריך</p>
+            <input type="date" id="examDateInput" class="date-input">
+            <button class="action-btn primary" onclick="saveExamDate()" style="width:100%;justify-content:center;margin-top:12px">
+                התחלי ללמוד
+            </button>
+        </div>
+    </div>
+
     <main class="main-content">
         <!-- Dashboard Page -->
         <div class="page active" id="page-dashboard">
@@ -48,7 +75,7 @@
                 <div class="countdown-card">
                     <div class="countdown-number" id="countdownDays">--</div>
                     <div class="countdown-label">ימים לבחינה</div>
-                    <div class="countdown-date">15.07.2026</div>
+                    <div class="countdown-date" id="countdownDateLabel">--</div>
                 </div>
             </div>
 
@@ -110,7 +137,8 @@
         <div class="page" id="page-test">
             <div class="test-container">
                 <div class="test-header">
-                    <button class="back-btn" onclick="confirmExitTest()">✕ צא מהמבחן</button>
+                    <button class="back-btn" onclick="confirmExitTest()">✕ צאי מהמבחן</button>
+                    <div class="sim-timer" id="simTimer" style="display:none">03:00:00</div>
                     <div class="test-progress">
                         <div class="progress-text" id="testProgressText">שאלה 1 מתוך 10</div>
                         <div class="progress-bar-container">
@@ -127,6 +155,7 @@
                     <div class="question-number" id="questionNumber"></div>
                     <div class="question-text" id="questionText"></div>
                     <div class="options-list" id="optionsList"></div>
+                    <button class="report-error-btn" id="reportErrorBtn" onclick="openErrorReport()">🚩 דיווח על טעות</button>
                 </div>
 
                 <!-- Navigation buttons -->
@@ -160,6 +189,10 @@
                     <button class="action-btn primary" onclick="practiceMistakes()">🔄 תרגול הטעויות</button>
                     <button class="action-btn secondary" onclick="navigateTo('dashboard')">🏠 חזרה לדף הבית</button>
                 </div>
+
+                <!-- Per-topic breakdown (simulations only) -->
+                <div id="topicBreakdown" class="topic-breakdown" style="display:none"></div>
+
                 <div class="results-details">
                     <h3 class="wrong-title" id="wrongTitle">❌ שאלות שטעיתי</h3>
                     <div id="wrongAnswersList" class="answers-list"></div>
@@ -195,6 +228,10 @@
             </div>
             <div class="settings-content">
                 <div class="setting-item">
+                    <h3>תאריך בחינה</h3>
+                    <div id="settingsExamDate"></div>
+                </div>
+                <div class="setting-item">
                     <h3>איפוס התקדמות</h3>
                     <p>מחיקת כל הנתונים השמורים - ציונים, שאלות חלשות ורצף ימים</p>
                     <button class="danger-btn" onclick="resetProgress()">🗑️ איפוס כל ההתקדמות</button>
@@ -208,5 +245,9 @@
     </main>
 
     <script src="app.js"></script>
+    <!-- GoatCounter analytics — privacy-friendly, free tier -->
+    <!-- SETUP: Create account at https://www.goatcounter.com, replace YOUR_SITE below -->
+    <script data-goatcounter="https://YOUR_SITE.goatcounter.com/count"
+            async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>
