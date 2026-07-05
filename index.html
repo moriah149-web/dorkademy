@@ -10,33 +10,6 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <!-- Header -->
-    <header class="header">
-        <div class="header-inner">
-            <div class="logo" onclick="navigateTo('dashboard')">
-                <span class="logo-icon">📖</span>
-                <span class="logo-text">Dorkademy</span>
-            </div>
-            <nav class="nav">
-                <button class="nav-btn active" data-page="dashboard" onclick="navigateTo('dashboard')">דף הבית</button>
-                <button class="nav-btn" data-page="simulations" onclick="navigateTo('simulations')">מבחני סימולציה</button>
-                <button class="nav-btn" data-page="weak-questions" onclick="navigateTo('weak-questions')">שאלות חלשות</button>
-                <button class="nav-btn" data-page="history" onclick="navigateTo('history')">היסטוריית מבחנים</button>
-                <button class="nav-btn" data-page="settings" onclick="navigateTo('settings')">הגדרות</button>
-            </nav>
-            <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
-        </div>
-    </header>
-
-    <!-- Mobile Menu -->
-    <div class="mobile-menu" id="mobileMenu">
-        <button onclick="navigateTo('dashboard'); toggleMobileMenu()">דף הבית</button>
-        <button onclick="navigateTo('simulations'); toggleMobileMenu()">מבחני סימולציה</button>
-        <button onclick="navigateTo('weak-questions'); toggleMobileMenu()">שאלות חלשות</button>
-        <button onclick="navigateTo('history'); toggleMobileMenu()">היסטוריית מבחנים</button>
-        <button onclick="navigateTo('settings'); toggleMobileMenu()">הגדרות</button>
-    </div>
-
     <!-- Error Report Modal -->
     <div class="modal-overlay" id="errorReportModal">
         <div class="modal-card">
@@ -62,6 +35,33 @@
                 התחלי ללמוד
             </button>
         </div>
+    </div>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo" onclick="navigateTo('dashboard')">
+                <span class="logo-icon">📖</span>
+                <span class="logo-text">Dorkademy</span>
+            </div>
+            <nav class="nav">
+                <button class="nav-btn active" data-page="dashboard" onclick="navigateTo('dashboard')">דף הבית</button>
+                <button class="nav-btn" data-page="simulations" onclick="navigateTo('simulations')">מבחני סימולציה</button>
+                <button class="nav-btn" data-page="weak-questions" onclick="navigateTo('weak-questions')">שאלות חלשות</button>
+                <button class="nav-btn" data-page="history" onclick="navigateTo('history')">היסטוריית מבחנים</button>
+                <button class="nav-btn" data-page="settings" onclick="navigateTo('settings')">הגדרות</button>
+            </nav>
+            <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
+        </div>
+    </header>
+
+    <!-- Mobile Menu -->
+    <div class="mobile-menu" id="mobileMenu">
+        <button onclick="navigateTo('dashboard'); toggleMobileMenu()">דף הבית</button>
+        <button onclick="navigateTo('simulations'); toggleMobileMenu()">מבחני סימולציה</button>
+        <button onclick="navigateTo('weak-questions'); toggleMobileMenu()">שאלות חלשות</button>
+        <button onclick="navigateTo('history'); toggleMobileMenu()">היסטוריית מבחנים</button>
+        <button onclick="navigateTo('settings'); toggleMobileMenu()">הגדרות</button>
     </div>
 
     <main class="main-content">

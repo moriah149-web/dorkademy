@@ -2,6 +2,10 @@
 // Dorkademy - Study App for OT Licensing Exam
 // ============================================================
 
+// --- Config ---
+const SIMULATION_DURATION_MINUTES = 180; // 3 hours — CONFIRM with Moria
+const ERROR_REPORT_EMAIL = 'moria@dorkademy.co.il'; // UPDATE this email
+
 // --- State ---
 let DATA = { topics: [], questions: [], simulations: [] };
 let state = {
@@ -14,12 +18,9 @@ let state = {
     testType: '',         // 'simulation', 'topic', 'practice', 'weak'
     testSimId: null,      // simulation id if applicable
     // Timer state
-    timerSeconds: 0,      // remaining seconds
-    timerInterval: null   // setInterval id
+    timerSeconds: 0,
+    timerInterval: null
 };
-
-// --- Config ---
-const SIMULATION_DURATION_MINUTES = 180; // 3 hours — CONFIRM with Moria
 
 // --- LocalStorage Keys ---
 const LS = {
@@ -63,11 +64,9 @@ function getExamDate() {
 
 function showExamDateModal() {
     document.getElementById('examDateModal').classList.add('active');
-    // Set min date to today
     const today = new Date().toISOString().split('T')[0];
     const input = document.getElementById('examDateInput');
     input.min = today;
-    // Pre-fill with saved date if editing
     const saved = load(LS.EXAM_DATE);
     if (saved) input.value = saved;
 }
@@ -170,21 +169,18 @@ function renderDailyPlan() {
         return;
     }
 
-    const topics = DATA.topics;
     // Build weighted plan: distribute topics across remaining days by question share
+    const topics = DATA.topics;
     const totalQuestions = DATA.questions.length;
-    const studyDays = Math.max(1, daysLeft - 7); // reserve last 7 days for simulations
-    // Each topic gets days proportional to its question count
+    const studyDays = Math.max(1, daysLeft - 7);
     const topicDays = topics.map(t => {
         const count = DATA.questions.filter(q => q.topicId === t.id).length;
         return { topic: t, days: Math.max(1, Math.round((count / totalQuestions) * studyDays)) };
     });
-    // Build a flat schedule of topic assignments
     const schedule = [];
     topicDays.forEach(td => {
         for (let i = 0; i < td.days; i++) schedule.push(td.topic);
     });
-    // Pick today's topics from the schedule
     const dayIndex = Math.floor((today - new Date(today.getFullYear(), 0, 1)) / (1000 * 60 * 60 * 24)) % Math.max(1, schedule.length);
     const topicsPerDay = Math.max(1, Math.ceil(schedule.length / studyDays));
     const todayTopics = [];
@@ -238,7 +234,6 @@ function renderStats() {
     });
     document.getElementById('statTopics').textContent = Math.round((masteredCount / topics.length) * 100) + '%';
 
-    // % of all questions that have been answered at least once
     const totalQs = DATA.questions.length;
     const answeredQs = Object.keys(mistakes).filter(id => {
         const m = mistakes[id];
@@ -399,7 +394,6 @@ function resumeSimulation(simState) {
     const sim = DATA.simulations.find(s => s.id === simState.simId);
     if (!sim) return;
 
-    // Restore question order from saved IDs
     state.testQuestions = simState.questionOrder
         .map(id => DATA.questions.find(q => q.id === id))
         .filter(Boolean);
@@ -451,7 +445,6 @@ function updateTimerDisplay() {
     const s = state.timerSeconds % 60;
     el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 
-    // Warning state at 15 minutes
     if (state.timerSeconds <= 900 && state.timerSeconds > 0) {
         el.classList.add('warning');
     } else {
@@ -477,7 +470,6 @@ function clearSavedSimState() {
 }
 
 function forceSubmitTest() {
-    // Same as submitTest but without confirmation prompts
     const total = state.testQuestions.length;
     const answers = state.testQuestions.map((q, i) => {
         const selected = state.testSelections[i];
@@ -494,6 +486,9 @@ function forceSubmitTest() {
     updateMastery();
     markDailyDone();
     updateStreak();
+    if (state.testType === 'simulation') {
+        trackEvent('simulation-completed', { simId: state.testSimId, score });
+    }
     state.testAnswers = answers;
     showResults(score, correct, total);
 }
@@ -536,11 +531,9 @@ function renderQuestion() {
             </button>`;
     }).join('');
 
-    // Update nav buttons
     document.getElementById('prevBtn').disabled = state.testIndex === 0;
     document.getElementById('nextBtn').disabled = state.testIndex === total - 1;
 
-    // Update question nav dots
     renderQuestionNav();
 }
 
@@ -549,13 +542,11 @@ function selectAnswer(index) {
     const q = state.testQuestions[state.testIndex];
     if (q) trackEvent('question-answered', { topic: q.topicId });
 
-    // Re-render options to show selection (no correct/wrong feedback)
     const options = document.querySelectorAll('.option-btn');
     options.forEach((btn, i) => {
         btn.classList.toggle('selected', i === index);
     });
 
-    // Update nav dot and answered count
     renderQuestionNav();
     const answeredCount = state.testSelections.filter(s => s !== -1).length;
     document.getElementById('answeredCount').textContent =
@@ -669,7 +660,6 @@ function showResults(score, correct, total) {
     const passed = score >= 60;
 
     scoreFill.className = 'score-fill ' + (isExam ? (passed ? 'pass' : 'fail') : '');
-    // Reset and animate
     scoreFill.style.strokeDashoffset = circumference;
     setTimeout(() => {
         scoreFill.style.strokeDashoffset = offset;
@@ -754,12 +744,11 @@ function showResults(score, correct, total) {
         const selectedText = a.selected === -1
             ? 'לא ענית'
             : `${letters[a.selected]}. ${q.options[a.selected]}`;
-        const selectedClass = a.selected === -1 ? 'wrong' : 'wrong';
         return `
             <div class="answer-item wrong">
                 <div class="answer-question">${q.question}</div>
                 <div class="answer-detail">
-                    בחרת: <span class="tag ${selectedClass}">${selectedText}</span>
+                    בחרת: <span class="tag wrong">${selectedText}</span>
                 </div>
                 <div class="answer-detail">
                     נכון: <span class="tag correct">${letters[a.correct]}. ${q.options[a.correct]}</span>
@@ -998,18 +987,20 @@ function renderSettings() {
 
 function resetProgress() {
     if (confirm('בטוח? כל ההתקדמות תימחק - ציונים, שאלות חלשות, רצף ימים.')) {
+        // Preserve exam date
+        const examDate = load(LS.EXAM_DATE);
         Object.values(LS).forEach(key => localStorage.removeItem(key));
+        if (examDate) save(LS.EXAM_DATE, examDate);
         alert('ההתקדמות אופסה!');
         navigateTo('dashboard');
     }
 }
 
 // --- Error Report ---
-const ERROR_REPORT_EMAIL = 'moria@dorkademy.co.il'; // UPDATE this email
-
 function openErrorReport() {
     const q = state.testQuestions[state.testIndex];
     if (!q) return;
+    state._reportQuestionId = q.id;
     document.getElementById('errorReportQuestion').textContent = `שאלה: ${q.id} — ${q.question.substring(0, 80)}...`;
     document.getElementById('errorReportText').value = '';
     document.getElementById('errorReportModal').classList.add('active');
